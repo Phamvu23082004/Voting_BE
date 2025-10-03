@@ -7,7 +7,6 @@ const crypto = require('crypto');
 const redisClient = require('../config/redis');
 const jwtService = require('./jwtService');
 
-
 const registerVoter = async (cccd, publicKey, electionId) => {
  const election = await Election.findOne({ election_id: electionId });
   if (!election) throw new Error('Election not found');
@@ -37,16 +36,9 @@ const registerVoter = async (cccd, publicKey, electionId) => {
 
 
 
-const { ec: EC } = require("elliptic");
-
-// init secp256k1 curve
-const ec = new EC("secp256k1");
-
-// verifySignature.js
-import * as secp from "@noble/secp256k1";
-import crypto from "crypto";
-
 const verifySignature = async (pkHex, hashPk, signatureHex, election_id) => {
+  const secp = await import('@noble/secp256k1'); // dynamic import (ESM lib trong CJS)
+
   const voter = await Voter.findOne({ hashed_key: hashPk, election_id });
   if (!voter || !voter.is_valid) throw new Error("Voter not valid");
 
@@ -61,7 +53,7 @@ const verifySignature = async (pkHex, hashPk, signatureHex, election_id) => {
   const pkBytes = Buffer.from(pkHex, "hex");
   const sigBytes = Buffer.from(signatureHex, "hex");
 
-  // verify (v3: verifySync, không cần async)
+  // verify (noble/secp256k1 v3)
   const isValid = secp.verify(sigBytes, msgHash, pkBytes);
 
   if (!isValid) throw new Error("Invalid signature");
@@ -74,8 +66,6 @@ const verifySignature = async (pkHex, hashPk, signatureHex, election_id) => {
 
   return { accessToken, refreshToken };
 };
-
-export default verifySignature;
 
 
 
