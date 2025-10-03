@@ -1,0 +1,37 @@
+{
+  "name": "demo_voting_be",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@noble/hashes": "^1.3.2",
+    "@noble/secp256k1": "^3.0.0",
+    "body-parser": "^2.2.0",
+    "crypto": "^1.0.1",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^17.2.2",
+    "elliptic": "^6.6.1",
+    "ethers": "^6.15.0",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "keccak256": "^1.0.6",
+    "merkletreejs": "^0.6.0",
+    "mongoose": "^8.18.2",
+    "multer": "^2.0.2",
+    "paillier-bigint": "^3.4.3",
+    "redis": "^5.8.3",
+    "snarkjs": "^0.7.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
