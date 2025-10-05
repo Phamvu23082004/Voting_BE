@@ -1,18 +1,23 @@
-// tools/sign.mjs
-import * as secp from "@noble/secp256k1";
-import { sha256 } from "@noble/hashes/sha256";
+import { createHash } from "crypto";
+import elliptic from "elliptic";
 
-const privKey = process.argv[2];   // private key hex
-const msg = process.argv[3];       // message hex
+const { ec: EC } = elliptic;
+const ec = new EC("secp256k1");
 
-// Tạo Uint8Array từ message
-const msgBytes = Buffer.from(msg, "hex");
+// Nhận tham số dòng lệnh
+const privKey = process.argv[2]; // private key hex
+const msg = process.argv[3]; // message hex
 
 // Hash message
-const msgHash = sha256(msgBytes);
+const msgHash = createHash("sha256").update(Buffer.from(msg, "hex")).digest();
 
-// Ký bằng private key
-const signature = await secp.sign(msgHash, privKey, { der: false });
+// Tạo keypair và ký
+const keyPair = ec.keyFromPrivate(privKey, "hex");
+const signature = keyPair.sign(msgHash);
 
-// In ra signature hex
-console.log(Buffer.from(signature).toString("hex"));
+// ✅ Xuất chữ ký dạng (r || s), tổng cộng 64 bytes = 128 hex chars
+const rHex = signature.r.toString("hex").padStart(64, "0");
+const sHex = signature.s.toString("hex").padStart(64, "0");
+const sigHex = rHex + sHex;
+
+console.log(sigHex);

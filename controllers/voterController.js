@@ -1,63 +1,92 @@
-const voterService = require('../services/voterService');
+const voterService = require("../services/voterService");
+const jwtService = require("../services/jwtService");
 
 const registerVoter = async (req, res) => {
-    const { cccd, publicKey, electionID } = req.body;
+  const { cccd, publicKey, election_id } = req.body;
 
-    try {
-        const result = await voterService.registerVoter(cccd, publicKey, electionID);
-        res.status(200).send(result);
-    } catch (err) {
-        res.status(400).send({ message: err.message });
-    }
+  try {
+    const result = await voterService.registerVoter(
+      cccd,
+      publicKey,
+      election_id
+    );
+
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
+  } catch (error) {
+    return res.InternalError();
+  }
 };
 
 async function getChallenge(req, res) {
   try {
     const { hashPk, election_id } = req.query;
+
     if (!hashPk || !election_id) {
-      return res.status(400).json({ error: "Missing parameters" });
+      return res.error(1, "Thiếu tham số bắt buộc");
     }
-    const challenge = await voterService.generateChallenge(hashPk, election_id);
-    res.json({ challenge });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+
+    const result = await voterService.generateChallenge(hashPk, election_id);
+
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
+  } catch (error) {
+    return res.InternalError();
   }
 }
 
 async function verifyLogin(req, res) {
   try {
     const { pk, hashPk, signature, election_id } = req.body;
+
     if (!pk || !hashPk || !signature || !election_id) {
-      return res.status(400).json({ error: "Missing parameters" });
+      return res.error(1, "Thiếu tham số bắt buộc");
     }
-    const tokens = await voterService.verifySignature(pk, hashPk, signature, election_id);
-    res.json(tokens); // { accessToken, refreshToken }
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+
+    const result = await voterService.verifySignature(
+      pk,
+      hashPk,
+      signature,
+      election_id
+    );
+
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
+  } catch (error) {
+    return res.InternalError();
   }
 }
 
-// 🔄 API refresh token
 async function refreshToken(req, res) {
   try {
     const { refreshToken } = req.body;
+
     if (!refreshToken) {
-      return res.status(400).json({ error: "Missing refresh token" });
+      return res.error(1, "Thiếu refresh token");
     }
 
     const decoded = jwtService.verifyToken(refreshToken);
     if (!decoded) {
-      return res.status(403).json({ error: "Invalid or expired refresh token" });
+      return res.error(2, "Refresh token không hợp lệ hoặc đã hết hạn");
     }
 
-    const payload = { pk: decoded.pk, hashPk: decoded.hashPk, election_id: decoded.election_id };
+    const payload = {
+      pk: decoded.pk,
+      hashPk: decoded.hashPk,
+      election_id: decoded.election_id,
+    };
     const newAccessToken = jwtService.generateAccessToken(payload);
 
-    res.json({ accessToken: newAccessToken });
+    return res.success(
+      { accessToken: newAccessToken },
+      "Làm mới access token thành công"
+    );
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    return res.InternalError();
   }
 }
-
 
 module.exports = { registerVoter, getChallenge, verifyLogin, refreshToken };

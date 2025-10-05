@@ -7,5 +7,6 @@ router.post('/register', voterController.registerVoter);
 
 router.get("/challenge", voterController.getChallenge);
 router.post("/verify", voterController.verifyLogin);
+router.post("/refresh_token", voterController.refreshToken);
 
 module.exports = router;

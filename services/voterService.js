@@ -1,62 +1,127 @@
-const Voter = require('../models/voterModel');
-const ValidVoter = require('../models/validVoterModel');
-const Election = require('../models/electionModel');
-const merkleUtils = require('../utils/merkleUtils');
-const keccak256 = require('keccak256');
-const crypto = require('crypto');
-const redisClient = require('../config/redis');
-const jwtService = require('./jwtService');
+const Voter = require("../models/voterModel");
+const ValidVoter = require("../models/validVoterModel");
+const Election = require("../models/electionModel");
+const merkleUtils = require("../utils/merkleUtils");
+const keccak256 = require("keccak256");
+const crypto = require("crypto");
+const redisClient = require("../config/redis");
+const jwtService = require("./jwtService");
+const EC = require("elliptic").ec;
 
-const registerVoter = async (cccd, publicKey, electionId) => {
- const election = await Election.findOne({ election_id: electionId });
-  if (!election) throw new Error('Election not found');
+const ec = new EC("secp256k1");
 
-  // Kiểm tra cử tri hợp lệ
-  const valid = await ValidVoter.findOne({ cccd, election_id: electionId });
-  if (!valid) throw new Error('Not in valid voter list');
+const registerVoter = async (cccd, publicKey, election_id) => {
+  const election = await Election.findOne({ election_id: election_id });
+  if (!election) {
+    return {
+      EC: 1,
+      EM: "Cuộc bầu cử không tồn tại",
+    };
+  }
 
-  // Hash pk
-  const hashedKey = keccak256(publicKey).toString('hex');
+  const valid = await ValidVoter.findOne({ cccd, election_id });
+  if (!valid) {
+    return { EC: 2, EM: "Cử tri không có trong danh sách hợp lệ" };
+  }
+
+  if (!valid.is_valid) {
+    return { EC: 3, EM: "Cử tri đã đăng ký trước đó" };
+  }
+
+  const hashedKey = keccak256(publicKey).toString("hex");
 
   // Kiểm tra đã có hashedKey chưa
-  const existing = await Voter.findOne({ election_id: election._id, hashed_key: hashedKey });
-  if (existing) throw new Error('Already registered');
+  const existing = await Voter.findOne({ election_id, hashed_key: hashedKey });
+  if (existing) {
+    return { EC: 4, EM: "Khóa công khai này đã được sử dụng" };
+  }
 
-  // Lưu voter (chỉ lưu hash)
   const voter = new Voter({
     hashed_key: hashedKey,
-    election_id: electionId,
+    election_id: election_id,
     is_valid: true,
-    proof: [] // proof sẽ được cập nhật khi finalize
+    proof: [],
   });
   await voter.save();
 
-  return { message: 'Registered (demo)', hashed_key: hashedKey };
+  valid.is_valid = false;
+  await valid.save();
+
+  return {
+    EC: 0,
+    EM: "Đăng ký cử tri thành công",
+    result: {
+      hashed_key: hashedKey,
+    },
+  };
 };
 
+const generateChallenge = async (hashPk, election_id) => {
+  const voter = await Voter.findOne({ hashed_key: hashPk, election_id });
+  if (!voter || !voter.is_valid) {
+    return {
+      EC: 1,
+      EM: "Cử tri không hợp lệ hoặc chưa được xác nhận",
+    };
+  }
 
+  const challenge = crypto.randomBytes(32).toString("hex");
+  await redisClient.setEx(
+    `challenge:${hashPk}:${election_id}`,
+    1000,
+    challenge
+  ); // TTL 60s
+
+  return {
+    EC: 0,
+    EM: "Tạo challenge thành công",
+    result: { challenge },
+  };
+};
 
 const verifySignature = async (pkHex, hashPk, signatureHex, election_id) => {
-  const secp = await import('@noble/secp256k1'); // dynamic import (ESM lib trong CJS)
-
   const voter = await Voter.findOne({ hashed_key: hashPk, election_id });
-  if (!voter || !voter.is_valid) throw new Error("Voter not valid");
+  console.log("verifySignature input:", {
+    pkHex,
+    hashPk,
+    signatureHex,
+    election_id,
+  });
+
+  if (!voter || !voter.is_valid) {
+    return {
+      EC: 1,
+      EM: "Cử tri không hợp lệ hoặc chưa được xác nhận",
+    };
+  }
 
   const challenge = await redisClient.get(`challenge:${hashPk}:${election_id}`);
-  if (!challenge) throw new Error("No challenge found or expired");
+  if (!challenge) {
+    return {
+      EC: 2,
+      EM: "Challenge không tồn tại hoặc đã hết hạn",
+    };
+  }
 
-  // hash challenge
-  const msgHash = crypto.createHash("sha256")
+  // Hash challenge
+  const msgHash = crypto
+    .createHash("sha256")
     .update(Buffer.from(challenge, "hex"))
     .digest();
 
-  const pkBytes = Buffer.from(pkHex, "hex");
-  const sigBytes = Buffer.from(signatureHex, "hex");
+  const keyPair = ec.keyFromPublic(pkHex, "hex");
+  const r = signatureHex.slice(0, 64);
+  const s = signatureHex.slice(64, 128);
+  const signature = { r, s };
 
-  // verify (noble/secp256k1 v3)
-  const isValid = secp.verify(sigBytes, msgHash, pkBytes);
-
-  if (!isValid) throw new Error("Invalid signature");
+  // Verify
+  const isValid = keyPair.verify(msgHash, signature);
+  if (!isValid) {
+    return {
+      EC: 3,
+      EM: "Chữ ký không hợp lệ",
+    };
+  }
 
   await redisClient.del(`challenge:${hashPk}:${election_id}`);
 
@@ -64,22 +129,14 @@ const verifySignature = async (pkHex, hashPk, signatureHex, election_id) => {
   const accessToken = jwtService.generateAccessToken(payload);
   const refreshToken = jwtService.generateRefreshToken(payload);
 
-  return { accessToken, refreshToken };
-};
-
-
-
-//sinh challenge ngẫu nhiên
-const generateChallenge = async (hashPk, election_id) => {
-  const voter = await Voter.findOne({ hashed_key: hashPk, election_id });
-  if (!voter || !voter.is_valid) {
-    throw new Error("Voter not valid");
-  }
-
-  const challenge = crypto.randomBytes(32).toString("hex");
-  await redisClient.setEx(`challenge:${hashPk}:${election_id}`, 1000, challenge); // TTL 60s
-
-  return challenge;
+  return {
+    EC: 0,
+    EM: "Xác thực thành công",
+    result: {
+      accessToken,
+      refreshToken,
+    },
+  };
 };
 
 module.exports = { registerVoter, verifySignature, generateChallenge };
