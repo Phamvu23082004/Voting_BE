@@ -7,6 +7,10 @@ const path = require('path');
 const merkleUtils = require('../utils/merkleUtils');
 const Election = require('../models/electionModel');
 const Voter = require('../models/voterModel');
+const Candidate = require("../models/candidateModel");
+const { contract } = require("../config/blockchain");
+
+
 
 // Import CSV với mongoimport
 
@@ -99,6 +103,65 @@ const finalizeElection = async (electionId) => {
   };
 };
 
+//  1. Public thông tin election lên blockchain
+async function publishElectionInfo(electionId) {
+  const election = await Election.findOne({ election_id: electionId });
+  if (!election) throw new Error("Election not found");
+
+  console.log(" Publishing election info to blockchain...");
+
+  const tx = await contract.setElectionInfo(
+    election.election_id,
+    election.name,
+    election.start_date.toISOString(),
+    election.end_date.toISOString()
+  );
+
+  const receipt = await tx.wait();
+  console.log(` Election info published! TX: ${receipt.hash}`);
+
+  return { txHash: receipt.hash };
+}
+
+//  2. Public danh sách ứng cử viên
+async function publishCandidates(electionId) {
+  const candidates = await Candidate.find({ election_id: electionId });
+  if (!candidates.length) throw new Error("No candidates found");
+
+  console.log(` Publishing ${candidates.length} candidates...`);
+  for (const c of candidates) {
+    const tx = await contract.addCandidate(c.name);
+    await tx.wait();
+    console.log(` Candidate added: ${c.name}`);
+  }
+
+  return { count: candidates.length };
+}
+
+//  3. Public Merkle root sau khi hết hạn đăng ký
+async function publishMerkleRoot(electionId) {
+  const election = await Election.findOne({ election_id: electionId });
+  if (!election) throw new Error("Election not found");
+
+  console.log(" Publishing Merkle root to blockchain...");
+  const tx = await contract.setMerkleRoot(election.merkle_root);
+  const receipt = await tx.wait();
+
+  election.status = "ended";
+  await election.save();
+
+  return { txHash: receipt.hash, root: election.merkle_root };
+}
+
+//  4. Public EPK (dùng sau này khi có DKG)
+// async function publishEpk(epkHex) {
+//   const tx = await contract.publishEpk(epkHex);
+//   const receipt = await tx.wait();
+//   console.log("🔐 EPK published!");
+//   return { txHash: receipt.hash, epk: epkHex };
+// }
 
 
-module.exports = { importCSV, importExcel, finalizeElection };
+
+
+module.exports = { importCSV, importExcel, finalizeElection, publishMerkleRoot, publishElectionInfo, publishCandidates };

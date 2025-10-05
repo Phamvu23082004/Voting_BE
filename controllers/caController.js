@@ -50,6 +50,7 @@ exports.uploadExcel = async (req, res) => {
     }
 };
 
+
 //tao merkle tree va proof cho election
 exports.finalizeElection = async (req, res) => {
   try {
@@ -60,3 +61,46 @@ exports.finalizeElection = async (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 };
+
+exports.publishElectionInfo = async (req, res) => {
+  try {
+    const { electionId } = req.params;
+    const result = await caService.publishElectionInfo(electionId);
+    res.status(200).json({ success: true, message: "Election info published", ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Publish candidate list
+exports.publishCandidates = async (req, res) => {
+  try {
+    const { electionId } = req.params;
+    const result = await caService.publishCandidates(electionId);
+    res.status(200).json({ success: true, message: "Candidates published", ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Finalize election (public Merkle root)
+exports.finalizeElection = async (req, res) => {
+  try {
+    const { electionId } = req.params;
+    const result = await caService.publishMerkleRoot(electionId);
+    res.status(200).json({ success: true, message: "Merkle root published", ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Publish EPK (sau DKG)
+// exports.publishEpk = async (req, res) => {
+//   try {
+//     const { epk } = req.body;
+//     const result = await caService.publishEpk(epk);
+//     res.status(200).json({ success: true, message: "EPK published", ...result });
+//   } catch (err) {
+//     res.status(500).json({ success: false, error: err.message });
+//   }
+// };
