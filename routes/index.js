@@ -8,6 +8,7 @@ const caRoutes = require('./adminRoutes');
 // Sử dụng route cử tri
 router.use('/voter', voterRoutes);
 router.use('/ca', caRoutes);
+router.use('/organization', require('./organizationRoutes'));
 
 // Có thể thêm các route khác ở đây (nếu cần)
 
