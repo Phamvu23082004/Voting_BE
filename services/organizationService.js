@@ -1,43 +1,70 @@
-
-const jwtService = require('./jwtService');
-const bcrypt = require('bcryptjs');
-const Organization = require('../models/organizationModel');
+const jwtService = require("./jwtService");
+const bcrypt = require("bcryptjs");
+const Organization = require("../models/organizationModel");
 
 // CA tạo trustee
 const createTrustee = async (data) => {
   const { name, password, walletAddress } = data;
-
+  if (!name || !password || !walletAddress) {
+    return {
+      EC: 1,
+      EM: "Thiếu thông tin bắt buộc (name, password, walletAddress)",
+    };
+  }
   // Hash password trong service
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
-    console.log("Hashed password:", hashedPassword);
+  console.log("Hashed password:", hashedPassword);
   const trustee = new Organization({
     name,
     password: hashedPassword,
     walletAddress,
-    role: 'TRUSTEE'
+    role: "TRUSTEE",
   });
 
-  return await trustee.save();
+  await trustee.save();
+
+  return {
+    EC: 0,
+    EM: "Tạo Trustee thành công",
+    result: {
+      id: trustee._id,
+      name: trustee.name,
+      walletAddress: trustee.walletAddress,
+    },
+  };
 };
 
 // Đăng nhập CA / Trustee
 const login = async (name, password) => {
   const organization = await Organization.findOne({ name });
-  if (!organization) throw new Error('organization not found');
+  if (!organization) {
+    return { EC: 1, EM: "Không tìm thấy tổ chức" };
+  }
 
   const valid = await bcrypt.compare(password, organization.password);
-  if (!valid) throw new Error('Invalid password');
+  if (!valid) {
+    return { EC: 2, EM: "Sai mật khẩu" };
+  }
 
-  const accessToken = jwtService.generateAccessToken({ _id: organization._id, role: organization.role });
-  const refreshToken = jwtService.generateRefreshToken({ _id: organization._id, role: organization.role });
+  const payload = {
+    _id: organization._id,
+    role: organization.role,
+  };
+
+  const accessToken = jwtService.generateAccessToken(payload);
+  const refreshToken = jwtService.generateRefreshToken(payload);
 
   return {
-    accessToken,
-    refreshToken,
-    role: organization.role,
-    name: organization.name,
-    walletAddress: organization.walletAddress
+    EC: 0,
+    EM: "Đăng nhập thành công",
+    result: {
+      accessToken,
+      refreshToken,
+      role: organization.role,
+      name: organization.name,
+      walletAddress: organization.walletAddress,
+    },
   };
 };
 

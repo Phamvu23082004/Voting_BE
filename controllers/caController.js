@@ -1,5 +1,5 @@
-const { importCSV, importExcel } = require('../services/caService');
-const caService = require('../services/caService');
+const { importCSV, importExcel } = require("../services/caService");
+const caService = require("../services/caService");
 
 // Upload CSV
 // exports.uploadCSV = async (req, res) => {
@@ -19,78 +19,84 @@ const caService = require('../services/caService');
 exports.uploadcsvfast = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, error: "No file uploaded" });
+      return res.error(1, "Không có file được tải lên");
     }
 
     const filePath = req.file.path;
     const start = Date.now();
-    console.log('⏱️ Bắt đầu import CSV...: ', start);
+    console.log("⏱️ Bắt đầu import CSV...: ", start);
     const result = await importCSV(filePath);
     const end = Date.now();
     console.log(`⏱️ Import CSV mất ${(end - start) / 1000} giây`);
-    res.json({
-      success: true,
-      message: 'CSV uploaded',
-      ...result,
-      time: (end - start) / 1000 + 's'
-    });
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    return res.InternalError();
   }
 };
 
 // Upload Excel
 exports.uploadExcel = async (req, res) => {
-    try {
-        const filePath = req.file.path;
-        const result = await importExcel(filePath);
-        res.json({ success: true, message: 'Excel uploaded', ...result });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+  try {
+    const filePath = req.file.path;
+    const result = await importExcel(filePath);
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
+  } catch (error) {
+    return res.InternalError();
+  }
 };
 
-
-//tao merkle tree va proof cho election
+// Tạo merkle tree va proof cho election
 exports.finalizeElection = async (req, res) => {
   try {
-    const { electionId } = req.params;
-    const result = await caService.finalizeElection(electionId);
-    res.json({ success: true, message: 'Election finalized', ...result });
+    const { election_id } = req.params;
+    const result = await caService.finalizeElection(election_id);
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    return res.InternalError();
   }
 };
 
 exports.publishElectionInfo = async (req, res) => {
   try {
-    const { electionId } = req.params;
-    const result = await caService.publishElectionInfo(electionId);
-    res.status(200).json({ success: true, message: "Election info published", ...result });
+    const { election_id } = req.params;
+    const result = await caService.publishElectionInfo(election_id);
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.InternalError();
   }
 };
 
 // Publish candidate list
 exports.publishCandidates = async (req, res) => {
   try {
-    const { electionId } = req.params;
-    const result = await caService.publishCandidates(electionId);
-    res.status(200).json({ success: true, message: "Candidates published", ...result });
+    const { election_id } = req.params;
+    const result = await caService.publishCandidates(election_id);
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.InternalError();
   }
 };
 
 // Finalize election (public Merkle root)
 exports.finalizeElection = async (req, res) => {
   try {
-    const { electionId } = req.params;
-    const result = await caService.publishMerkleRoot(electionId);
-    res.status(200).json({ success: true, message: "Merkle root published", ...result });
+    const { election_id } = req.params;
+    const result = await caService.publishMerkleRoot(election_id);
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.InternalError();
   }
 };
 

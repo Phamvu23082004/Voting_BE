@@ -1,38 +1,40 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-// Schema cho cuộc bầu cử
-const electionSchema = new mongoose.Schema({
-    election_id: { 
-        type: String, 
-        required: true, 
-        unique: true,  // Đảm bảo election_id là duy nhất
+const electionSchema = new mongoose.Schema(
+  {
+    election_id: {
+      type: String,
+      required: true,
+      unique: true, 
     },
-    name: { 
-        type: String, 
-        required: true,  // Tên cuộc bầu cử
+    name: {
+      type: String,
+      required: true,
     },
-    start_date: { 
-        type: Date, 
-        required: true,  // Thời gian bắt đầu
+    start_date: {
+      type: Date,
+      required: true,
     },
-    end_date: { 
-        type: Date, 
-        required: true,  // Thời gian kết thúc
+    end_date: {
+      type: Date,
+      required: true,
     },
-    status: { 
-        type: String, 
-        enum: ['active', 'ended'],  // Trạng thái cuộc bầu cử
-        default: 'active',
+    status: {
+      type: String,
+      enum: ["active", "ended"],
+      default: "active",
     },
-    merkle_root: { 
-        type: String, 
-        default: null  // Root Merkle Tree sau khi finalize
-    }
-}, {
+    merkle_root: {
+      type: String,
+      default: null,
+    },
+  },
+  {
     timestamps: true,
-});
+  }
+);
 
 electionSchema.index({ election_id: 1 }, { unique: true });
 
-const Election = mongoose.model('Election', electionSchema);
+const Election = mongoose.model("Election", electionSchema);
 module.exports = Election;
