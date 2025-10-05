@@ -1,19 +1,14 @@
-const organizationService = require('../services/organizationService');
+const organizationService = require("../services/organizationService");
 
 // CA tạo trustee
 const registerTrustee = async (req, res) => {
   try {
     const result = await organizationService.createTrustee(req.body);
-    res.status(201).json({
-      success: true,
-      message: 'Trustee created successfully',
-      data: result
-    });
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
+    return res.InternalError();
   }
 };
 
@@ -23,20 +18,15 @@ const loginOrganization = async (req, res) => {
     const { name, password } = req.body;
     console.log(name, password);
     const result = await organizationService.login(name, password);
-    res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      data: result
-    });
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
   } catch (error) {
-    res.status(401).json({
-      success: false,
-      error: error.message
-    });
+    return res.InternalError();
   }
 };
 
 module.exports = {
   registerTrustee,
-  loginOrganization
+  loginOrganization,
 };

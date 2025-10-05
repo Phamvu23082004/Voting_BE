@@ -114,7 +114,6 @@ const verifySignature = async (pkHex, hashPk, signatureHex, election_id) => {
   const s = signatureHex.slice(64, 128);
   const signature = { r, s };
 
-  // Verify
   const isValid = keyPair.verify(msgHash, signature);
   if (!isValid) {
     return {
