@@ -2,11 +2,15 @@ const jwt = require("jsonwebtoken");
 const jwtConfig = require("../config/jwt");
 
 function generateAccessToken(payload) {
-  return jwt.sign(payload, jwtConfig.secret, { expiresIn: jwtConfig.expiresIn });
+  return jwt.sign(payload, jwtConfig.secret, {
+    expiresIn: jwtConfig.expiresIn,
+  });
 }
 
 function generateRefreshToken(payload) {
-  return jwt.sign(payload, jwtConfig.secret, { expiresIn: jwtConfig.refreshExpiresIn });
+  return jwt.sign(payload, jwtConfig.secret, {
+    expiresIn: jwtConfig.refreshExpiresIn,
+  });
 }
 
 function verifyToken(token) {
@@ -20,5 +24,5 @@ function verifyToken(token) {
 module.exports = {
   generateAccessToken,
   generateRefreshToken,
-  verifyToken
+  verifyToken,
 };

@@ -11,10 +11,10 @@ const validVoterSchema = new mongoose.Schema({
         type: String, 
         required: true,  // Mã cuộc bầu cử elc1 elc2
     },
-    // is_valid: { 
-    //     type: Boolean, 
-    //     default: true,  // Trạng thái hợp lệ của cử tri
-    // },
+    is_valid: { 
+        type: Boolean, 
+        default: true,  // Trạng thái hợp lệ của cử tri
+    },
 }, {
     timestamps: true,  // Tự động thêm trường createdAt và updatedAt
 });

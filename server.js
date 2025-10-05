@@ -1,5 +1,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
+const cors = require("cors");
+const responseHandler = require("./middlewares/ResponseHandler");
 // const mongoose = require("mongoose");
 
 require("dotenv").config();
@@ -19,6 +21,8 @@ const connectDB = require("./config/db"); // <-- import file config db
 
 // Gọi hàm kết nối DB
 connectDB();
+app.use(cors());
+app.use(responseHandler);
 const routes = require("./routes/index");
 app.use("/", routes);
 
