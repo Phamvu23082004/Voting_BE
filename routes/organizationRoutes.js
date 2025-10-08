@@ -1,12 +1,34 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const controller = require('../controllers/organizationController');
-const { authMiddleware, requireRole } = require('../middlewares/authMiddleware');
+const controller = require("../controllers/organizationController");
+const {
+  authMiddleware,
+  requireRole,
+} = require("../middlewares/authMiddleware");
 
-// CA tạo trustee
-router.post('/register-trustee', authMiddleware, requireRole('CA'), controller.registerTrustee);
+router.get("/", authMiddleware, requireRole("CA"), controller.getOrganizations);
 
-// CA hoặc Trustee đăng nhập
-router.post('/login', controller.loginOrganization);
+router.post(
+  "/register-trustee",
+  authMiddleware,
+  requireRole("CA"),
+  controller.registerTrustee
+);
+
+router.post("/login", controller.loginOrganization);
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  requireRole("CA"),
+  controller.deleteOrganization
+);
+
+router.delete(
+  "/delete-all",
+  authMiddleware,
+  requireRole("CA"),
+  controller.deleteAllOrganizations
+);
 
 module.exports = router;

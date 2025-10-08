@@ -39,6 +39,7 @@ async function getChallenge(req, res) {
 
 async function verifyLogin(req, res) {
   try {
+    console.log("aaa");
     const { pk, hashPk, signature, election_id } = req.body;
 
     if (!pk || !hashPk || !signature || !election_id) {

@@ -1,4 +1,3 @@
-const { importCSV, importExcel } = require("../services/caService");
 const caService = require("../services/caService");
 
 // Upload CSV
@@ -16,6 +15,17 @@ const caService = require("../services/caService");
 //     }
 // };
 
+exports.getElections = async (req, res) => {
+  try {
+    const result = await caService.getElections();
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
+  } catch (error) {
+    return res.InternalError();
+  }
+};
+
 exports.uploadcsvfast = async (req, res) => {
   try {
     if (!req.file) {
@@ -25,9 +35,49 @@ exports.uploadcsvfast = async (req, res) => {
     const filePath = req.file.path;
     const start = Date.now();
     console.log("⏱️ Bắt đầu import CSV...: ", start);
-    const result = await importCSV(filePath);
+    const result = await caService.importCSV(filePath);
     const end = Date.now();
     console.log(`⏱️ Import CSV mất ${(end - start) / 1000} giây`);
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
+  } catch (error) {
+    return res.InternalError();
+  }
+};
+
+exports.createElection = async (req, res) => {
+  try {
+    const {
+      election_id,
+      name,
+      description,
+      start_date,
+      deadline_register,
+      end_date,
+    } = req.body;
+    const filePath = req.file.path;
+    if (
+      !election_id ||
+      !name ||
+      !description ||
+      !deadline_register ||
+      !start_date ||
+      !end_date
+    ) {
+      return res.error(1, "Thiếu tham số bắt buộc");
+    }
+
+    const result = await caService.createElection({
+      election_id,
+      name,
+      description,
+      start_date,
+      end_date,
+      deadline_register,
+      filePath,
+    });
+
     return result.EC === 0
       ? res.success(result.result, result.EM)
       : res.error(result.EC, result.EM);
@@ -40,7 +90,7 @@ exports.uploadcsvfast = async (req, res) => {
 exports.uploadExcel = async (req, res) => {
   try {
     const filePath = req.file.path;
-    const result = await importExcel(filePath);
+    const result = await caService.importExcel(filePath);
     return result.EC === 0
       ? res.success(result.result, result.EM)
       : res.error(result.EC, result.EM);
@@ -50,10 +100,22 @@ exports.uploadExcel = async (req, res) => {
 };
 
 // Tạo merkle tree va proof cho election
-exports.finalizeElection = async (req, res) => {
+// exports.finalizeElection = async (req, res) => {
+//   try {
+//     const { election_id } = req.params;
+//     const result = await caService.finalizeElection(election_id);
+//     return result.EC === 0
+//       ? res.success(result.result, result.EM)
+//       : res.error(result.EC, result.EM);
+//   } catch (err) {
+//     return res.InternalError();
+//   }
+// };
+
+exports.finalizeAndPublishMerkle = async (req, res) => {
   try {
     const { election_id } = req.params;
-    const result = await caService.finalizeElection(election_id);
+    const result = await caService.finalizeAndPublishMerkle(election_id);
     return result.EC === 0
       ? res.success(result.result, result.EM)
       : res.error(result.EC, result.EM);
@@ -88,17 +150,17 @@ exports.publishCandidates = async (req, res) => {
 };
 
 // Finalize election (public Merkle root)
-exports.finalizeElection = async (req, res) => {
-  try {
-    const { election_id } = req.params;
-    const result = await caService.publishMerkleRoot(election_id);
-    return result.EC === 0
-      ? res.success(result.result, result.EM)
-      : res.error(result.EC, result.EM);
-  } catch (err) {
-    return res.InternalError();
-  }
-};
+// exports.publishMerkleRoot = async (req, res) => {
+//   try {
+//     const { election_id } = req.params;
+//     const result = await caService.publishMerkleRoot(election_id);
+//     return result.EC === 0
+//       ? res.success(result.result, result.EM)
+//       : res.error(result.EC, result.EM);
+//   } catch (err) {
+//     return res.InternalError();
+//   }
+// };
 
 // Publish EPK (sau DKG)
 // exports.publishEpk = async (req, res) => {
@@ -110,3 +172,15 @@ exports.finalizeElection = async (req, res) => {
 //     res.status(500).json({ success: false, error: err.message });
 //   }
 // };
+
+exports.deleteElection = async (req, res) => {
+  try {
+    const { election_id } = req.params;
+    const result = await caService.deleteElection(election_id);
+    return result.EC === 0
+      ? res.success(result.result, result.EM)
+      : res.error(result.EC, result.EM);
+  } catch (error) {
+    return res.InternalError();
+  }
+};
