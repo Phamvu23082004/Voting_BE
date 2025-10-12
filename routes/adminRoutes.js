@@ -15,8 +15,7 @@ router.post(
   caController.createElection
 );
 
-
-router.post('/finalize/:electionId', caController.finalizeElection); //Tinh merkle root va proof
+// router.post("/finalize/:electionId", caController.finalizeElection); 
 
 // CA public election info
 router.post("/publish-election/:election_id", caController.publishElectionInfo);
@@ -25,16 +24,18 @@ router.post("/publish-election/:election_id", caController.publishElectionInfo);
 router.post("/publish-candidates/:election_id", caController.publishCandidates);
 
 // CA finalize election (publish Merkle root)
-router.post("/public-root/:election_id", caController.finalizeElection);
+// router.post("/public-root/:election_id", caController.finalizeElection);
 
 // CA generate keys for DKG
-router.post('/generate', caController.generateKeys);
+router.post("/generate", caController.generateKeys);
 
 // CA publish EPK (after DKG)
 router.post("/publish-epk", caController.publishEpk);
 
-router.post("/finalize-publish/:election_id", caController.finalizeAndPublishMerkle);
-
+router.post(
+  "/finalize-publish/:election_id",
+  caController.finalizeAndPublishMerkle
+);
 
 router.delete("/:election_id", caController.deleteElection);
 
