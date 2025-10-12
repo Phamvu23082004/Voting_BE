@@ -18,6 +18,24 @@ const { ethers } = require("ethers");
 
 const n = ec.curve.n;
 
+const getElections = async () => {
+  const elections = await Election.find()
+    .sort({ createdAt: -1 })
+    .select(
+      "election_id name description start_date end_date deadline_register status merkle_root"
+    );
+
+  if (!elections.length) {
+    return { EC: 1, EM: "Chưa có cuộc bầu cử nào", result: [] };
+  }
+
+  return {
+    EC: 0,
+    EM: "Lấy danh sách cuộc bầu cử thành công",
+    result: elections,
+  };
+};
+
 const importCSV = (filePath) => {
   return new Promise((resolve) => {
     const mongoUri = process.env.MONGODB_URI;
@@ -57,6 +75,58 @@ const importCSV = (filePath) => {
       });
     });
   });
+};
+
+const createElection = async ({
+  election_id,
+  name,
+  description,
+  deadline_register,
+  start_date,
+  end_date,
+  filePath,
+}) => {
+  const existed = await Election.findOne({ election_id });
+  if (existed) {
+    return {
+      EC: 1,
+      EM: `Mã cuộc bầu cử "${election_id}" đã tồn tại, vui lòng chọn mã khác.`,
+    };
+  }
+
+  const election = new Election({
+    election_id,
+    name,
+    description,
+    deadline_register,
+    start_date,
+    end_date,
+    status: "active",
+  });
+  await election.save();
+
+  // 2. Import danh sách cử tri từ file CSV
+  const importResult = await importCSV(filePath);
+  if (importResult.EC !== 0) {
+    throw new Error("Lỗi khi import danh sách cử tri: " + importResult.EM);
+  }
+
+  // Xoá file sau khi import
+  fs.unlinkSync(filePath);
+
+  return {
+    EC: 0,
+    EM: "Tạo cuộc bầu cử thành công",
+    result: {
+      election_id: election.election_id,
+      name: election.name,
+      description: election.description,
+      start_date: election.start_date,
+      end_date: election.end_date,
+      deadline_register: election.deadline_register,
+      status: election.status,
+    },
+  };
 };
 
 // Import Excel voters (dùng insertMany)
@@ -101,59 +171,114 @@ const importExcel = async (filePath) => {
 };
 
 // Tính path cho voters
-const finalizeElection = async (electionId) => {
-  // 1. Tìm election
+// const finalizeElection = async (electionId) => {
+//   // 1. Tìm election
+//   const election = await Election.findOne({ election_id: electionId });
+//   if (!election) {
+//     return { EC: 1, EM: "Không tìm thấy cuộc bầu cử" };
+//   }
+
+//   // 2. Lấy voter (chỉ lấy trường cần thiết)
+//   const voters = await Voter.find(
+//     { election_id: electionId },
+//     "_id hashed_key"
+//   ).lean();
+
+//   if (!voters.length) {
+//     return { EC: 2, EM: "Chưa có cử tri đăng ký cho cuộc bầu cử" };
+//   }
+
+//   // 3. Build Merkle Tree từ hashed_key
+//   const hashedKeys = voters.map((v) => v.hashed_key);
+//   const tree = merkleUtils.buildMerkleTree(hashedKeys);
+//   const root = merkleUtils.getMerkleRoot(tree);
+
+//   // 4. Update root cho election
+//   election.merkle_root = root;
+//   election.status = "ended";
+//   await election.save();
+
+//   // 5. Tạo bulk operations để update proof
+//   const bulkOps = voters.map((voter) => {
+//     const proof = merkleUtils.getProof(tree, voter.hashed_key);
+//     return {
+//       updateOne: {
+//         filter: { _id: voter._id },
+//         update: { proof },
+//       },
+//     };
+//   });
+
+//   // 6. Thực hiện bulk update
+//   if (bulkOps.length) {
+//     await Voter.bulkWrite(bulkOps);
+//   }
+
+//   return {
+//     EC: 0,
+//     EM: "Hoàn tất cuộc bầu cử thành công",
+//     result: {
+//       election_id: electionId,
+//       merkle_root: root,
+//       voter_count: voters.length,
+//     },
+//   };
+// };
+
+async function finalizeAndPublishMerkle(electionId) {
+  // 1️⃣ Tìm election
   const election = await Election.findOne({ election_id: electionId });
   if (!election) {
     return { EC: 1, EM: "Không tìm thấy cuộc bầu cử" };
   }
 
-  // 2. Lấy voter (chỉ lấy trường cần thiết)
+  // 2️⃣ Lấy danh sách voter
   const voters = await Voter.find(
     { election_id: electionId },
     "_id hashed_key"
   ).lean();
 
   if (!voters.length) {
-    return { EC: 2, EM: "Không có cử tri nào được đăng ký" };
+    return { EC: 2, EM: "Chưa có cử tri đăng ký cho cuộc bầu cử" };
   }
 
-  // 3. Build Merkle Tree từ hashed_key
+  // 3️⃣ Build Merkle tree
   const hashedKeys = voters.map((v) => v.hashed_key);
   const tree = merkleUtils.buildMerkleTree(hashedKeys);
   const root = merkleUtils.getMerkleRoot(tree);
 
-  // 4. Update root cho election
+  // 4️⃣ Tạo proof và update voter
+  const bulkOps = voters.map((voter) => ({
+    updateOne: {
+      filter: { _id: voter._id },
+      update: { proof: merkleUtils.getProof(tree, voter.hashed_key) },
+    },
+  }));
+  if (bulkOps.length) await Voter.bulkWrite(bulkOps);
+
+  // 5️⃣ Cập nhật election DB
   election.merkle_root = root;
-  election.status = "ended";
+  // election.status = "finalized";
   await election.save();
 
-  // 5. Tạo bulk operations để update proof
-  const bulkOps = voters.map((voter) => {
-    const proof = merkleUtils.getProof(tree, voter.hashed_key);
-    return {
-      updateOne: {
-        filter: { _id: voter._id },
-        update: { proof },
-      },
-    };
-  });
+  // 6️⃣ Publish lên blockchain
+  console.log("📤 Publishing Merkle root to blockchain...");
+  const tx = await contract.setMerkleRoot(root);
+  const receipt = await tx.wait();
 
-  // 6. Thực hiện bulk update
-  if (bulkOps.length) {
-    await Voter.bulkWrite(bulkOps);
-  }
+  console.log(`✅ Merkle root published! TX: ${receipt.hash}`);
 
   return {
     EC: 0,
-    EM: "Hoàn tất cuộc bầu cử thành công",
+    EM: "Finalize và publish Merkle root thành công",
     result: {
       election_id: electionId,
       merkle_root: root,
       voter_count: voters.length,
+      txHash: receipt.hash,
     },
   };
-};
+}
 
 //  1. Public thông tin election lên blockchain
 async function publishElectionInfo(electionId) {
@@ -209,33 +334,33 @@ async function publishCandidates(electionId) {
 }
 
 //  3. Public Merkle root sau khi hết hạn đăng ký
-async function publishMerkleRoot(electionId) {
-  const election = await Election.findOne({ election_id: electionId });
-  if (!election) {
-    return { EC: 1, EM: "Không tìm thấy cuộc bầu cử" };
-  }
+// async function publishMerkleRoot(electionId) {
+//   const election = await Election.findOne({ election_id: electionId });
+//   if (!election) {
+//     return { EC: 1, EM: "Không tìm thấy cuộc bầu cử" };
+//   }
 
-  if (!election.merkle_root) {
-    return { EC: 2, EM: "Chưa có Merkle root để publish" };
-  }
+//   if (!election.merkle_root) {
+//     return { EC: 2, EM: "Chưa có Merkle root để publish" };
+//   }
 
-  console.log(" Publishing Merkle root to blockchain...");
-  const tx = await contract.setMerkleRoot(election.merkle_root);
-  const receipt = await tx.wait();
+//   console.log(" Publishing Merkle root to blockchain...");
+//   const tx = await contract.setMerkleRoot(election.merkle_root);
+//   const receipt = await tx.wait();
 
-  election.status = "ended";
-  await election.save();
+//   election.status = "ended";
+//   await election.save();
 
-  return {
-    EC: 0,
-    EM: "Publish Merkle root thành công",
-    result: {
-      election_id: election.election_id,
-      root: election.merkle_root,
-      txHash: receipt.hash,
-    },
-  };
-}
+//   return {
+//     EC: 0,
+//     EM: "Publish Merkle root thành công",
+//     result: {
+//       election_id: election.election_id,
+//       root: election.merkle_root,
+//       txHash: receipt.hash,
+//     },
+//   };
+// }
 
 //  4. Public EPK (dùng sau này khi có DKG)
 async function publishEpk() {
@@ -364,14 +489,43 @@ const generateTrusteeShares = async (threshold = 2) => {
 //   }
 // };
 
+const deleteElection = async (election_id) => {
+  if (!election_id) {
+    return { EC: 1, EM: "Thiếu mã cuộc bầu cử cần xoá" };
+  }
+
+  const election = await Election.findOne({ election_id: election_id });
+  if (!election) {
+    return { EC: 2, EM: "Không tìm thấy cuộc bầu cử" };
+  }
+
+  await Promise.all([
+    Voter.deleteMany({ election_id: election_id }),
+    Candidate.deleteMany({ election_id: election_id }),
+    ValidVoter.deleteMany({ election_id: election_id }),
+  ]);
+
+  await Election.deleteOne({ election_id: election_id });
+
+  return {
+    EC: 0,
+    EM: `Đã xoá cuộc bầu cử "${election.name}" và dữ liệu liên quan`,
+    result: { election_id: election_id },
+  };
+};
+
 module.exports = {
+  getElections,
   importCSV,
   importExcel,
-  finalizeElection, 
-  publishMerkleRoot,
+  generateTrusteeShares,
+  publishEpk,
+  createElection,
+  // finalizeElection,
+  // publishMerkleRoot,
+  finalizeAndPublishMerkle,
   publishElectionInfo,
   publishCandidates,
-  generateTrusteeShares,
+  deleteElection,
 
-  publishEpk,
 };

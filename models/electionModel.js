@@ -5,9 +5,13 @@ const electionSchema = new mongoose.Schema(
     election_id: {
       type: String,
       required: true,
-      unique: true, 
+      unique: true,
     },
     name: {
+      type: String,
+      required: true,
+    },
+    description: {
       type: String,
       required: true,
     },
@@ -19,9 +23,13 @@ const electionSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    deadline_register: {
+      type: Date,
+      required: true,
+    },
     status: {
       type: String,
-      enum: ["active", "ended"],
+      enum: [ "upcoming", "active", "ended"],
       default: "active",
     },
     merkle_root: {

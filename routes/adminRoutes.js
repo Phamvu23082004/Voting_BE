@@ -1,16 +1,20 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const upload = require('../middlewares/fileUpload');
-const caController = require('../controllers/caController');
+const upload = require("../middlewares/fileUpload");
+const caController = require("../controllers/caController");
 
+router.get("/", caController.getElections);
 
-// API: Upload CSV
-// router.post('/upload/csv', upload.single('file'), caController.uploadCSV);
+router.post("/upload/excel", upload.single("file"), caController.uploadExcel);
 
-// API: Upload Excel
-router.post('/upload/excel', upload.single('file'), caController.uploadExcel);
+router.post("/upload/CSV", upload.single("file"), caController.uploadcsvfast);
 
-router.post('/upload/CSV', upload.single('file'), caController.uploadcsvfast);
+router.post(
+  "/create-election",
+  upload.single("file"),
+  caController.createElection
+);
+
 
 router.post('/finalize/:electionId', caController.finalizeElection); //Tinh merkle root va proof
 
@@ -28,5 +32,10 @@ router.post('/generate', caController.generateKeys);
 
 // CA publish EPK (after DKG)
 router.post("/publish-epk", caController.publishEpk);
-module.exports = router;
 
+router.post("/finalize-publish/:election_id", caController.finalizeAndPublishMerkle);
+
+
+router.delete("/:election_id", caController.deleteElection);
+
+module.exports = router;
