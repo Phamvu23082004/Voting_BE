@@ -5,6 +5,7 @@ const voterSchema = new mongoose.Schema({
   election_id: { type: String, required: true },
   proof: [String],
   is_valid: { type: Boolean, default: false },
+  pk_secp: { type: String, required: true },
 });
 
 const Voter = mongoose.model("Voter", voterSchema);

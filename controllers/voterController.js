@@ -2,19 +2,16 @@ const voterService = require("../services/voterService");
 const jwtService = require("../services/jwtService");
 
 const registerVoter = async (req, res) => {
-  const { cccd, publicKey, election_id } = req.body;
-
+  // const { cccd, publicKey, election_id } = req.body;
+  const payload = req.body;
   try {
-    const result = await voterService.registerVoter(
-      cccd,
-      publicKey,
-      election_id
-    );
+    const result = await voterService.registerVoter(payload);
 
     return result.EC === 0
       ? res.success(result.result, result.EM)
       : res.error(result.EC, result.EM);
   } catch (error) {
+    console.log("err", error);
     return res.InternalError();
   }
 };
