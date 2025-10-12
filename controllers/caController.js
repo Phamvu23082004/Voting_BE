@@ -101,12 +101,37 @@ exports.finalizeElection = async (req, res) => {
 };
 
 // Publish EPK (sau DKG)
-// exports.publishEpk = async (req, res) => {
-//   try {
-//     const { epk } = req.body;
-//     const result = await caService.publishEpk(epk);
-//     res.status(200).json({ success: true, message: "EPK published", ...result });
-//   } catch (err) {
-//     res.status(500).json({ success: false, error: err.message });
-//   }
-// };
+exports.publishEpk = async (req, res) => {
+  try {
+    const { epk } = req.body;
+    const result = await caService.publishEpk();
+    res.status(200).json({ success: true, message: "EPK published", ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.generateKeys = async (req, res) => {
+  try {
+    //  Sinh khóa và tính epk
+    const result = await caService.generateTrusteeShares();
+
+
+      if (result.EC === 0) {
+
+
+        return res.success(
+          {
+            result: result
+          },
+          "Generate and publish EPK successfully"
+    );
+    } else {
+      return res.error(1, result.EM);
+    }
+  } catch (error) { 
+    console.error("generateKeys Error:", error);
+    return res.InternalError();
+  }
+};
+

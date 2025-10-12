@@ -1,4 +1,4 @@
-const fs = require("fs");
+// const fs = require("fs");
 const { parse } = require("csv-parse");
 const ExcelJS = require("exceljs");
 const ValidVoter = require("../models/validVoterModel");
@@ -9,6 +9,14 @@ const Election = require("../models/electionModel");
 const Voter = require("../models/voterModel");
 const Candidate = require("../models/candidateModel");
 const { contract } = require("../config/blockchain");
+const { ec: EC } = require('elliptic');
+const ec = new EC('secp256k1');
+const BN = require('bn.js');
+const Organization = require("../models/organizationModel");
+const { ethers } = require("ethers");
+
+
+const n = ec.curve.n;
 
 const importCSV = (filePath) => {
   return new Promise((resolve) => {
@@ -230,18 +238,140 @@ async function publishMerkleRoot(electionId) {
 }
 
 //  4. Public EPK (dùng sau này khi có DKG)
-// async function publishEpk(epkHex) {
-//   const tx = await contract.publishEpk(epkHex);
-//   const receipt = await tx.wait();
-//   console.log("🔐 EPK published!");
-//   return { txHash: receipt.hash, epk: epkHex };
-// }
+async function publishEpk() {
+  const epk = "0x" + "0226d3af593483c58edaba7e0a3add069cc71283c8a9874c74ed024ad4e577e54b"
+  const tx = await contract.publishEpk(epk);
+  const receipt = await tx.wait();
+  console.log("🔐 EPK published!");
+  return { txHash: receipt.hash, epk: epk };
+}
+
+
+const { initBabyjub, evalPolynomial, getParams } = require("../utils/eccUtils.js");
+const  crypto = require("crypto");
+
+const fs = require("fs").promises;
+
+const generateTrusteeShares = async (threshold = 2) => {
+  const start = Date.now();
+  console.log("🚀 Bắt đầu sinh shares cho các trustee...");
+
+  try {
+    // 1️⃣ Khởi tạo curve BabyJubJub
+    await initBabyjub();
+    const { babyjub, F, G, n } = getParams();
+
+    // 2️⃣ Lấy danh sách trustee từ DB
+    const trusteesFromDB = await Organization.find().select("name");
+    if (!trusteesFromDB || trusteesFromDB.length < threshold) {
+      throw new Error(`Không đủ trustee trong DB (cần >= ${threshold})`);
+    }
+
+    const trusteeNames = trusteesFromDB.map((t) => t.name);
+    console.log(`✅ Có ${trusteeNames.length} trustee trong hệ thống`);
+
+    // 3️⃣ Mỗi trustee sinh đa thức bí mật
+    const trustees = trusteeNames.map((name) => {
+      const coeffs = Array.from({ length: threshold }, () =>
+        BigInt("0x" + crypto.randomBytes(32).toString("hex")) % n
+      );
+      return { name, coeffs };
+    });
+
+    // 4️⃣ Tính các share F(ID_i)
+    const shares = trusteeNames.map((name, i) => {
+      const IDi = BigInt(i + 1);
+      const total = trustees.reduce((sum, t) => {
+        const val = evalPolynomial(t.coeffs, IDi);
+        return (sum + val) % n;
+      }, 0n);
+      return { name, F: total };
+    });
+
+    // 5️⃣ Public Yi = F(ID_i) * Base8
+    const publicYi = shares.map((s) => ({
+      name: s.name,
+      Y: babyjub.mulPointEscalar(G, s.F),
+    }));
+
+    // 6️⃣ Ghi file share của từng trustee (async)
+    const folderPath = path.join(__dirname, "../keys/trustingKeys");
+    await fs.mkdir(folderPath, { recursive: true });
+
+    await Promise.all(
+      shares.map(async (s) => {
+        const safeName = s.name.replace(/\s+/g, "_");
+        const filePath = path.join(folderPath, `${safeName}.json`);
+        await fs.writeFile(
+          filePath,
+          JSON.stringify({ trustee: s.name, share: s.F.toString() }, null, 2)
+        );
+      })
+    );
+
+    console.log("✅ Ghi file shares thành công");
+
+    // 7️⃣ Tính F(0) = tổng các hệ số a₀
+    const F0 = trustees.reduce((sum, t) => (sum + t.coeffs[0]) % n, 0n);
+
+    // 8️⃣ Khóa công khai đồng cấu PK_HE = F(0) * Base8
+    const epkPoint = babyjub.mulPointEscalar(G, F0);
+    const epk = {
+      x: F.toObject(epkPoint[0]).toString(),
+      y: F.toObject(epkPoint[1]).toString(),
+    };
+
+    console.log(`✅ Hoàn tất trong ${(Date.now() - start) / 1000}s`);
+
+    // ✅ Kết quả trả về
+    return {
+      EC: 0,
+      EM: "Success",
+      totalTrustees: trusteeNames.length,
+      publicYi,
+      epk,
+    };
+  } catch (err) {
+    console.error("❌ Lỗi trong generateTrusteeShares:", err);
+    return {
+      EC: 1,
+      EM: err.message,
+    };
+  }
+};
+
+
+
+
+// const publishEpkToBlockchain = async (epkPoint) => {
+//   try {
+//     const epk = String(epkPoint).startsWith("0x") ? String(epkPoint) : "0x" + String(epkPoint);
+//     console.log("🔹 EPK (type):", typeof epk, " | isHex:", ethers.isHexString(epk));
+
+//     console.log("🔹 Calling publishEpk...", epk);
+//     const tx = await contract.publishEpk(epk);
+//     const receipt = await tx.wait();
+//     // console.log("✅ Published EPK on chain. Block:", receipt.blockNumber);
+
+//     return {
+//       EC: 0,
+//       EM: "Publish EPK thành công",
+//       result: { epk: epkPoint, txHash: receipt.hash },
+//     };
+//   } catch (err) {
+//     console.error("❌ Publish EPK Error:", err);
+//     return { EC: 1, EM: err.message };
+//   }
+// };
 
 module.exports = {
   importCSV,
   importExcel,
-  finalizeElection,
+  finalizeElection, 
   publishMerkleRoot,
   publishElectionInfo,
   publishCandidates,
+  generateTrusteeShares,
+
+  publishEpk,
 };
