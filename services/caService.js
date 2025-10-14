@@ -1,4 +1,4 @@
-// const fs = require("fs");
+const fs = require("fs");
 const { parse } = require("csv-parse");
 const ExcelJS = require("exceljs");
 const ValidVoter = require("../models/validVoterModel");
@@ -14,7 +14,9 @@ const ec = new EC('secp256k1');
 const BN = require('bn.js');
 const Organization = require("../models/organizationModel");
 const { ethers } = require("ethers");
-
+const { initBabyjub, evalPolynomial, getParams } = require("../utils/eccUtils.js");
+const  crypto = require("crypto");
+const fs1 = require("fs").promises;
 
 const n = ec.curve.n;
 
@@ -371,12 +373,6 @@ async function publishEpk() {
   return { txHash: receipt.hash, epk: epk };
 }
 
-
-const { initBabyjub, evalPolynomial, getParams } = require("../utils/eccUtils.js");
-const  crypto = require("crypto");
-
-const fs = require("fs").promises;
-
 const generateTrusteeShares = async (threshold = 2) => {
   const start = Date.now();
   console.log("🚀 Bắt đầu sinh shares cho các trustee...");
@@ -421,13 +417,13 @@ const generateTrusteeShares = async (threshold = 2) => {
 
     // 6️⃣ Ghi file share của từng trustee (async)
     const folderPath = path.join(__dirname, "../keys/trustingKeys");
-    await fs.mkdir(folderPath, { recursive: true });
+    await fs1.mkdir(folderPath, { recursive: true });
 
     await Promise.all(
       shares.map(async (s) => {
         const safeName = s.name.replace(/\s+/g, "_");
         const filePath = path.join(folderPath, `${safeName}.json`);
-        await fs.writeFile(
+        await fs1.writeFile(
           filePath,
           JSON.stringify({ trustee: s.name, share: s.F.toString() }, null, 2)
         );
