@@ -82,6 +82,7 @@ exports.createElection = async (req, res) => {
       ? res.success(result.result, result.EM)
       : res.error(result.EC, result.EM);
   } catch (error) {
+    console.log("err", error)
     return res.InternalError();
   }
 };
