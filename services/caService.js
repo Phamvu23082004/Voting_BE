@@ -1,4 +1,4 @@
-// const fs = require("fs");
+const fs = require("fs");
 const { parse } = require("csv-parse");
 const ExcelJS = require("exceljs");
 const ValidVoter = require("../models/validVoterModel");
@@ -375,7 +375,7 @@ async function publishEpk() {
 const { initBabyjub, evalPolynomial, getParams } = require("../utils/eccUtils.js");
 const  crypto = require("crypto");
 
-const fs = require("fs").promises;
+// const fs = require("fs").promises;
 
 const generateTrusteeShares = async (threshold = 2) => {
   const start = Date.now();
