@@ -1,9 +1,14 @@
+const e = require("express");
 const mongoose = require("mongoose");
 
 const voteSchema = new mongoose.Schema({
   nullifier: String,
-  ciphertext: String,
-  proof: String,
+  hashCipher: String,
+  election_id: String,
+  C1x: String,
+  C1y: String,
+  C2x: String,
+  C2y: String,
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -17,5 +17,7 @@ router.use('/voting', votingRoutes);
 
 router.use('/organization', organizationRoutes);
 
+router.use('/zkp', require('./zkpRotes'));
+
 
 module.exports = router;
